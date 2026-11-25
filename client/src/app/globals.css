@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background-color: #07090e;
+  color: #f8fafc;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+.wallet-adapter-button-trigger {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%) !important;
+  color: #020617 !important;
+  font-weight: 700 !important;
+  border-radius: 0.75rem !important;
+  transition: transform 0.15s ease, opacity 0.15s ease !important;
+}
+
+.wallet-adapter-button-trigger:hover {
+  opacity: 0.92 !important;
+  transform: translateY(-1px) !important;
+}

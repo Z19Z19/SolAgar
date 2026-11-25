@@ -1,0 +1,152 @@
+export type LobbyTierId = 'micro' | 'standard' | 'whale';
+
+export interface LobbyTierConfig {
+  id: LobbyTierId;
+  name: string;
+  buyInSol: number;
+  buyInLamports: number;
+  arenaSize: number;
+  maxPellets: number;
+  maxViruses: number;
+  accentColor: string;
+}
+
+export const LOBBY_TIERS: Record<LobbyTierId, LobbyTierConfig> = {
+  micro: {
+    id: 'micro',
+    name: 'Micro Arena',
+    buyInSol: 0.05,
+    buyInLamports: 50_000_000,
+    arenaSize: 4000,
+    maxPellets: 450,
+    maxViruses: 14,
+    accentColor: '#10b981',
+  },
+  standard: {
+    id: 'standard',
+    name: 'Standard Arena',
+    buyInSol: 0.25,
+    buyInLamports: 250_000_000,
+    arenaSize: 4500,
+    maxPellets: 500,
+    maxViruses: 16,
+    accentColor: '#06b6d4',
+  },
+  whale: {
+    id: 'whale',
+    name: 'Whale Arena',
+    buyInSol: 1.0,
+    buyInLamports: 1_000_000_000,
+    arenaSize: 5000,
+    maxPellets: 550,
+    maxViruses: 18,
+    accentColor: '#a855f7',
+  },
+};
+
+export interface PlayerSkin {
+  id: string;
+  name: string;
+  fill: string;
+  border: string;
+  glow: string;
+}
+
+export const PLAYER_SKINS: PlayerSkin[] = [
+  { id: 'cyber-cyan', name: 'Cyber Cyan', fill: '#06b6d4', border: '#67e8f9', glow: 'rgba(6,182,212,0.5)' },
+  { id: 'sol-emerald', name: 'Solana Emerald', fill: '#10b981', border: '#6ee7b7', glow: 'rgba(16,185,129,0.5)' },
+  { id: 'phantom-purple', name: 'Phantom Violet', fill: '#8b5cf6', border: '#c4b5fd', glow: 'rgba(139,92,246,0.5)' },
+  { id: 'plasma-pink', name: 'Plasma Pink', fill: '#ec4899', border: '#f9a8d4', glow: 'rgba(236,72,153,0.5)' },
+  { id: 'solar-gold', name: 'Solar Gold', fill: '#f59e0b', border: '#fcd34d', glow: 'rgba(245,158,11,0.5)' },
+  { id: 'crimson-fury', name: 'Crimson Fury', fill: '#ef4444', border: '#fca5a5', glow: 'rgba(239,68,68,0.5)' },
+];
+
+export interface NetCell {
+  id: string;
+  ownerId: string;
+  username: string;
+  x: number;
+  y: number;
+  radius: number;
+  mass: number;
+  lamports: number;
+  fill: string;
+  border: string;
+  isCashingOut: boolean;
+  cashoutProgress: number; // 0 to 1
+  isDisconnected: boolean;
+}
+
+export interface NetPellet {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  color: string;
+  isEjected?: boolean;
+}
+
+export interface NetVirus {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+}
+
+export interface LeaderboardEntry {
+  playerId: string;
+  username: string;
+  walletShort: string;
+  totalMass: number;
+  totalLamports: number;
+  isCashingOut: boolean;
+}
+
+export interface GameStateSnapshot {
+  tick: number;
+  arenaSize: number;
+  cells: NetCell[];
+  pellets: NetPellet[];
+  viruses: NetVirus[];
+  leaderboard: LeaderboardEntry[];
+  playerCount: number;
+  myTotalMass: number;
+  myTotalLamports: number;
+  myCenterX: number;
+  myCenterY: number;
+  isCashingOut: boolean;
+  cashoutProgress: number;
+}
+
+export interface KillFeedEvent {
+  id: string;
+  killerName: string;
+  victimName: string;
+  bountySol: number;
+  timestamp: number;
+}
+
+export interface LobbyStats {
+  id: LobbyTierId;
+  name: string;
+  buyInSol: number;
+  playerCount: number;
+  totalPotSol: number;
+  leaderboard: LeaderboardEntry[];
+}
+
+export interface JoinArenaPayload {
+  lobbyId: LobbyTierId;
+  username: string;
+  walletAddress: string;
+  txSignature: string;
+  skinId: string;
+}
+
+export interface CashOutResult {
+  txSignature: string;
+  grossSol: number;
+  rakeSol: number;
+  netSol: number;
+  explorerUrl: string;
+}

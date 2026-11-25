@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Deposit {
+  id           String   @id @default(cuid())
+  wallet       String
+  lobbyTier    String
+  grossLamports BigInt
+  netLamports  BigInt
+  rakeLamports BigInt
+  txSignature  String   @unique
+  status       String   @default("CONFIRMED")
+  createdAt    DateTime @default(now())
+
+  @@index([wallet])
+}
+
+model KillEvent {
+  id             String   @id @default(cuid())
+  lobbyTier      String
+  killerWallet   String
+  killerName     String
+  victimWallet   String
+  victimName     String
+  bountyLamports BigInt
+  createdAt      DateTime @default(now())
+
+  @@index([killerWallet])
+  @@index([victimWallet])
+}
+
+model CashOut {
+  id            String   @id @default(cuid())
+  wallet        String
+  lobbyTier     String
+  grossLamports BigInt
+  rakeLamports  BigInt
+  netLamports   BigInt
+  txSignature   String?
+  status        String   @default("PENDING") // PENDING | CONFIRMED | FAILED
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  @@index([wallet])
+}
+
+model RakeLedger {
+  id            String   @id @default(cuid())
+  source        String   // ENTRY_RAKE | CASHOUT_RAKE
+  lobbyTier     String
+  amountLamports BigInt
+  txSignature   String?
+  createdAt     DateTime @default(now())
+}
+
+model AntiCheatFlag {
+  id           String   @id @default(cuid())
+  wallet       String
+  targetWallet String?
+  reason       String
+  details      String
+  createdAt    DateTime @default(now())
+
+  @@index([wallet])
+}
