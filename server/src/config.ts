@@ -14,7 +14,7 @@ export const config = {
   rakeMode: (process.env.RAKE_MODE === 'cashout' ? 'cashout' : 'entry') as 'entry' | 'cashout',
 
   // Physics & Gameplay Constants
-  tickRateHz: 30,
+  tickRateHz: 60,
   initialMass: 20,
   minSplitMass: 36,
   minEjectMass: 32,

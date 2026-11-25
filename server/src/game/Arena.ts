@@ -49,8 +49,8 @@ export interface PlayerSession {
   username: string;
   fill: string;
   border: string;
-  targetX: number;
-  targetY: number;
+  inputDx: number;
+  inputDy: number;
   cells: CellEntity[];
   isCashingOut: boolean;
   cashoutStartedAt: number | null;
@@ -202,8 +202,8 @@ export class Arena {
       username: params.username,
       fill: skin.fill,
       border: skin.border,
-      targetX: spawnX,
-      targetY: spawnY,
+      inputDx: 0,
+      inputDy: 0,
       cells: [initialCell],
       isCashingOut: false,
       cashoutStartedAt: null,
@@ -219,20 +219,28 @@ export class Arena {
     return session;
   }
 
-  public handleMove(socketId: string, targetX: number, targetY: number): void {
+  public handleMove(socketId: string, dx: number, dy: number): void {
     const playerId = this.socketToPlayer.get(socketId);
     if (!playerId) return;
     const player = this.players.get(playerId);
     if (!player || player.disconnectedAt !== null) return;
 
-    const now = Date.now();
-    // Rate limit movement updates (~60Hz max)
-    if (now - player.lastMoveAt < 14) return;
-    player.lastMoveAt = now;
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    player.inputDx = Math.max(-5000, Math.min(5000, dx));
+    player.inputDy = Math.max(-5000, Math.min(5000, dy));
+  }
 
-    if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) return;
-    player.targetX = Math.max(0, Math.min(this.tier.arenaSize, targetX));
-    player.targetY = Math.max(0, Math.min(this.tier.arenaSize, targetY));
+  private getPlayerCenter(player: PlayerSession): { cx: number; cy: number } {
+    let totalMass = 0;
+    let sumX = 0;
+    let sumY = 0;
+    for (const c of player.cells) {
+      totalMass += c.mass;
+      sumX += c.x * c.mass;
+      sumY += c.y * c.mass;
+    }
+    if (totalMass <= 0) return { cx: this.tier.arenaSize / 2, cy: this.tier.arenaSize / 2 };
+    return { cx: sumX / totalMass, cy: sumY / totalMass };
   }
 
   public handleSplit(socketId: string): void {
@@ -244,8 +252,12 @@ export class Arena {
     }
 
     const now = Date.now();
-    if (now - player.lastActionAt < 100) return; // 10 actions/sec cap
+    if (now - player.lastActionAt < 80) return;
     player.lastActionAt = now;
+
+    const { cx, cy } = this.getPlayerCenter(player);
+    const targetX = cx + player.inputDx;
+    const targetY = cy + player.inputDy;
 
     const newCells: CellEntity[] = [];
     for (const cell of player.cells) {
@@ -264,8 +276,8 @@ export class Arena {
       cell.radius = massToRadius(mass1);
       cell.lamports = lamports1;
 
-      const dx = player.targetX - cell.x;
-      const dy = player.targetY - cell.y;
+      const dx = targetX - cell.x;
+      const dy = targetY - cell.y;
       const dist = Math.hypot(dx, dy) || 1;
       const nx = dx / dist;
       const ny = dy / dist;
@@ -312,14 +324,18 @@ export class Arena {
     if (now - player.lastActionAt < 80) return;
     player.lastActionAt = now;
 
+    const { cx, cy } = this.getPlayerCenter(player);
+    const targetX = cx + player.inputDx;
+    const targetY = cy + player.inputDy;
+
     for (const cell of player.cells) {
       if (cell.mass < config.minEjectMass) continue;
 
       cell.mass -= config.ejectMassCost;
       cell.radius = massToRadius(cell.mass);
 
-      const dx = player.targetX - cell.x;
-      const dy = player.targetY - cell.y;
+      const dx = targetX - cell.x;
+      const dy = targetY - cell.y;
       const dist = Math.hypot(dx, dy) || 1;
       const nx = dx / dist;
       const ny = dy / dist;
@@ -456,6 +472,10 @@ export class Arena {
     for (const player of this.players.values()) {
       if (player.cashoutProcessing) continue;
 
+      const { cx, cy } = this.getPlayerCenter(player);
+      const targetX = cx + player.inputDx;
+      const targetY = cy + player.inputDy;
+
       for (const cell of player.cells) {
         // Mass decay for large cells
         if (cell.mass > config.massDecayThreshold) {
@@ -466,15 +486,19 @@ export class Arena {
 
         // Target steering (frozen/slowed if disconnected)
         if (player.disconnectedAt === null) {
-          const dx = player.targetX - cell.x;
-          const dy = player.targetY - cell.y;
+          const dx = targetX - cell.x;
+          const dy = targetY - cell.y;
           const dist = Math.hypot(dx, dy);
           // Server-enforced velocity cap based on mass
-          const maxSpeed = config.baseSpeed * Math.pow(Math.max(10, cell.mass), -0.439) * 3.1;
-          const speedFactor = Math.min(1, dist / 60);
-          if (dist > 1) {
-            cell.vx = (dx / dist) * maxSpeed * speedFactor;
-            cell.vy = (dy / dist) * maxSpeed * speedFactor;
+          const maxSpeed = config.baseSpeed * Math.pow(Math.max(10, cell.mass), -0.439) * 3.2;
+          // Smooth deadzone only when cursor is very close to cell center (< 45px)
+          const speedFactor = Math.min(1, dist / 45);
+          if (dist > 0.5) {
+            const targetVx = (dx / dist) * maxSpeed * speedFactor;
+            const targetVy = (dy / dist) * maxSpeed * speedFactor;
+            // Smooth velocity response
+            cell.vx += (targetVx - cell.vx) * Math.min(1, dt * 22);
+            cell.vy += (targetVy - cell.vy) * Math.min(1, dt * 22);
           } else {
             cell.vx = 0;
             cell.vy = 0;

@@ -87,10 +87,10 @@ export class LobbyManager {
       }
     });
 
-    socket.on('player:move', (data: { x: number; y: number }) => {
+    socket.on('player:move', (data: { dx: number; dy: number }) => {
       const arenaId = this.socketArena.get(socket.id);
       if (!arenaId) return;
-      this.arenas.get(arenaId)?.handleMove(socket.id, data.x, data.y);
+      this.arenas.get(arenaId)?.handleMove(socket.id, data.dx, data.dy);
     });
 
     socket.on('player:split', () => {

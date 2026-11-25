@@ -9,7 +9,7 @@
     "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck",
     "prisma:generate": "npm --prefix server run prisma:generate",
     "prisma:push": "npm --prefix server run prisma:push",
-    "install:all": "npm install && npm --prefix server install && npm --prefix client install"
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install --ignore-scripts"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
