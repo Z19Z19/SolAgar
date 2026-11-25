@@ -7,13 +7,30 @@ import { escrowService } from './solana/escrowService';
 import { LobbyManager } from './game/LobbyManager';
 
 const app = express();
-app.use(cors({ origin: config.clientOrigin }));
+const allowedOrigins = config.clientOrigin
+  .split(',')
+  .map((o) => o.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+const corsOrigin =
+  allowedOrigins.length === 0 || allowedOrigins.includes('*')
+    ? '*'
+    : (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        if (!origin) return callback(null, true);
+        const clean = origin.replace(/\/$/, '');
+        if (allowedOrigins.includes(clean) || clean.endsWith('.vercel.app') || clean.startsWith('http://localhost')) {
+          return callback(null, true);
+        }
+        return callback(null, true);
+      };
+
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: config.clientOrigin,
+    origin: corsOrigin,
     methods: ['GET', 'POST'],
   },
 });

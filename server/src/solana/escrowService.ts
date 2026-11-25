@@ -14,7 +14,7 @@ import { CashOutResult, LOBBY_TIERS, LobbyTierId } from '@shared/types';
 
 function parseKeypair(raw: string): Keypair | null {
   if (!raw || !raw.trim()) return null;
-  const trimmed = raw.trim();
+  const trimmed = raw.trim().replace(/^["']|["']$/g, '').trim();
   try {
     if (trimmed.startsWith('[')) {
       const arr = JSON.parse(trimmed) as number[];
@@ -30,8 +30,9 @@ function parseKeypair(raw: string): Keypair | null {
 
 function parsePublicKey(raw: string): PublicKey | null {
   if (!raw || !raw.trim()) return null;
+  const trimmed = raw.trim().replace(/^["']|["']$/g, '').trim();
   try {
-    return new PublicKey(raw.trim());
+    return new PublicKey(trimmed);
   } catch {
     return null;
   }

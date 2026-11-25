@@ -17,6 +17,8 @@ COPY server/src ./src
 # Verify TypeScript compilation during image build
 RUN npm run typecheck
 
+ENV DATABASE_URL="file:./dev.db"
+
 EXPOSE 4000
 
 CMD ["sh", "-c", "npx prisma db push --skip-generate && npm start"]

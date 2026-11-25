@@ -209,12 +209,24 @@ export function LobbyScreen({
             </div>
 
             {/* Escrow Status / Errors */}
+            {!escrowInfo && (
+              <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  Cannot reach Game Server at{' '}
+                  <code>{process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000'}</code>. Make sure{' '}
+                  <code>NEXT_PUBLIC_SERVER_URL</code> points to your live Railway backend URL (starting with{' '}
+                  <code>https://</code>).
+                </span>
+              </div>
+            )}
+
             {escrowInfo && !escrowInfo.configured && (
               <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
                 <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>
-                  Server Escrow Vault is not configured in <code>server/.env</code>. Set{' '}
-                  <code>ESCROW_PRIVATE_KEY</code> and <code>DEV_TREASURY_WALLET</code> to enable live buy-ins.
+                  Server Escrow Vault is not configured. Add <code>ESCROW_PRIVATE_KEY</code> and{' '}
+                  <code>DEV_TREASURY_WALLET</code> in your Railway Variables tab (or <code>server/.env</code> locally).
                 </span>
               </div>
             )}
