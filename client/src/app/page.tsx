@@ -6,6 +6,7 @@ import {
   CashOutResult,
   GameStateSnapshot,
   KillFeedEvent,
+  LOBBY_TIERS,
   LobbyStats,
   LobbyTierId,
   PLAYER_SKINS,
@@ -27,7 +28,7 @@ export default function HomePage() {
 
   const [lobbies, setLobbies] = useState<LobbyStats[]>([]);
   const [escrowInfo, setEscrowInfo] = useState<EscrowPublicInfo | null>(null);
-  const [selectedLobby, setSelectedLobby] = useState<LobbyTierId>('micro');
+  const [selectedLobby, setSelectedLobby] = useState<LobbyTierId>('practice');
   const [username, setUsername] = useState('SolShark');
   const [skinId, setSkinId] = useState(PLAYER_SKINS[0].id);
 
@@ -120,9 +121,25 @@ export default function HomePage() {
   }, [socket]);
 
   const handleJoinArena = useCallback(async () => {
-    if (!publicKey || !escrowInfo) return;
+    const tier = LOBBY_TIERS[selectedLobby];
     setErrorMsg(null);
     setIsJoining(true);
+
+    // Free Practice Sandbox: instant join without wallet or Solana deposit
+    if (tier.isPractice) {
+      socket.emit('arena:join', {
+        lobbyId: selectedLobby,
+        username,
+        walletAddress: publicKey?.toBase58(),
+        skinId,
+      });
+      return;
+    }
+
+    if (!publicKey || !escrowInfo) {
+      setIsJoining(false);
+      return;
+    }
 
     try {
       const txSignature = await sendBuyInTransaction({

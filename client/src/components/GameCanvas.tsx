@@ -292,7 +292,7 @@ export function GameCanvas({ socket, stateRef, myPlayerId }: GameCanvasProps) {
         ctx.fillStyle = '#ffffff';
         ctx.fillText(cell.username, cx, nameY);
 
-        const solText = `${(cell.lamports / 1_000_000_000).toFixed(3)} SOL`;
+        const solText = `${(cell.lamports / 1_000_000_000).toFixed(3)} ${snap.isPractice ? 'vSOL' : 'SOL'}`;
         const solFontSize = Math.max(10, fontSize * 0.78);
         ctx.font = `700 ${solFontSize}px "JetBrains Mono", monospace`;
         const solY = cy + fontSize * 0.6;

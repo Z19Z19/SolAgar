@@ -8,8 +8,10 @@ WORKDIR /app
 COPY shared ./shared
 COPY server/package*.json ./server/
 COPY server/prisma ./server/prisma/
+COPY server/scripts ./server/scripts/
 
 WORKDIR /app/server
+RUN chmod +x scripts/start-prod.sh
 RUN npm install
 RUN npx prisma generate
 
@@ -23,4 +25,4 @@ ENV DATABASE_URL="file:./dev.db"
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npm start"]
+CMD ["sh", "./scripts/start-prod.sh"]

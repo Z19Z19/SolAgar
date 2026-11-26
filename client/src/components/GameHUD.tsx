@@ -3,7 +3,7 @@
 import React from 'react';
 import { GameStateSnapshot, KillFeedEvent } from '@shared/types';
 import { Socket } from 'socket.io-client';
-import { Coins, Flame, LogOut, Trophy } from 'lucide-react';
+import { Coins, Flame, LogOut, Radio, Trophy } from 'lucide-react';
 
 interface GameHUDProps {
   snapshot: GameStateSnapshot | null;
@@ -16,6 +16,10 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
   const myMass = snapshot?.myTotalMass ?? 0;
   const isCashingOut = snapshot?.isCashingOut ?? false;
   const progress = snapshot?.cashoutProgress ?? 0;
+  const isPractice = snapshot?.isPractice ?? false;
+  const minimap = snapshot?.minimap ?? [];
+
+  const enemyCashOuts = minimap.filter((m) => m.isCashingOut && !m.isMe);
 
   const startCashOut = () => socket.emit('cashout:start');
   const cancelCashOut = () => socket.emit('cashout:cancel');
@@ -29,12 +33,19 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
       <div className="flex items-start justify-between gap-4">
         {/* Top-Left: Player Balance & Mass */}
         <div className="pointer-events-auto rounded-2xl bg-[#0b0f19]/85 backdrop-blur-md border border-slate-800 px-4 py-3 shadow-xl">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Live Bounty Balance
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              {isPractice ? 'Virtual Practice Bounty' : 'Live Bounty Balance'}
+            </span>
+            {isPractice && (
+              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                SANDBOX
+              </span>
+            )}
           </div>
           <div className="text-2xl font-black font-mono text-emerald-400 flex items-center gap-2">
             <Coins className="w-5 h-5" />
-            {mySol.toFixed(4)} SOL
+            {mySol.toFixed(4)} {isPractice ? 'vSOL' : 'SOL'}
           </div>
           <div className="text-xs text-slate-400 mt-0.5 font-mono">
             Mass: <span className="text-white font-bold">{myMass}</span> • Players:{' '}
@@ -42,8 +53,15 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
           </div>
         </div>
 
-        {/* Top-Center: Kill Feed Toasts */}
+        {/* Top-Center: Cash-Out Radar Alert + Kill Feed Toasts */}
         <div className="hidden md:flex flex-col items-center gap-1.5">
+          {enemyCashOuts.length > 0 && (
+            <div className="px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/60 text-amber-300 text-xs font-black tracking-wide flex items-center gap-2 shadow-lg animate-pulse">
+              <Radio className="w-3.5 h-3.5 text-amber-400" />
+              CASH-OUT ON RADAR: {enemyCashOuts[0].username} ({enemyCashOuts[0].solValue.toFixed(3)}{' '}
+              {isPractice ? 'vSOL' : 'SOL'})
+            </div>
+          )}
           {killFeed.slice(0, 4).map((k) => (
             <div
               key={k.id}
@@ -54,7 +72,7 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
               <span className="text-slate-400">absorbed</span>
               <span className="font-bold text-rose-400">{k.victimName}</span>
               <span className="font-mono font-bold text-emerald-400">
-                (+{k.bountySol.toFixed(3)} SOL)
+                (+{k.bountySol.toFixed(3)} {isPractice ? 'vSOL' : 'SOL'})
               </span>
             </div>
           ))}
@@ -71,8 +89,11 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
                 key={entry.playerId}
                 className="flex items-center justify-between text-xs"
               >
-                <span className="truncate max-w-[115px] text-slate-200 font-medium">
+                <span className="truncate max-w-[115px] text-slate-200 font-medium flex items-center gap-1">
                   {idx + 1}. {entry.username}
+                  {entry.isCashingOut && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                  )}
                 </span>
                 <span className="font-mono font-bold text-emerald-400">
                   {(entry.totalLamports / 1_000_000_000).toFixed(2)}
@@ -83,14 +104,112 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
         </div>
       </div>
 
-      {/* Bottom Row: Controls Hint + Hold-to-Cash-Out Button with Radial Progress */}
-      <div className="flex items-end justify-between">
-        <div className="hidden sm:block rounded-xl bg-[#0b0f19]/80 backdrop-blur-md border border-slate-800 px-3.5 py-2 text-[11px] text-slate-400">
-          <span className="text-cyan-400 font-bold">SPACE</span> Split &nbsp;•&nbsp;{' '}
-          <span className="text-cyan-400 font-bold">W</span> Eject &nbsp;•&nbsp;{' '}
-          <span className="text-amber-400 font-bold">HOLD C</span> Cash Out (5s)
+      {/* Bottom Row: Minimap with Cash-Out Radar + Hold-to-Cash-Out Button */}
+      <div className="flex items-end justify-between gap-4">
+        {/* Bottom-Left: Minimap Radar + Controls */}
+        <div className="flex flex-col gap-2">
+          <div className="rounded-2xl bg-[#0b0f19]/85 backdrop-blur-md border border-slate-800 p-2.5 shadow-2xl w-40 sm:w-44">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 px-0.5">
+              <span className="flex items-center gap-1">
+                <Radio className="w-3 h-3 text-cyan-400" /> Radar
+              </span>
+              {enemyCashOuts.length > 0 ? (
+                <span className="text-amber-400 animate-pulse">
+                  {enemyCashOuts.length} EXITING
+                </span>
+              ) : (
+                <span className="text-slate-500 font-mono">
+                  {snapshot?.arenaSize ?? 4000}m
+                </span>
+              )}
+            </div>
+
+            {/* Square Radar Grid */}
+            <div className="relative w-full aspect-square rounded-lg bg-[#05080f] border border-slate-800/90 overflow-hidden">
+              {/* Crosshairs */}
+              <div className="absolute inset-y-0 left-1/2 w-px bg-slate-800/60" />
+              <div className="absolute inset-x-0 top-1/2 h-px bg-slate-800/60" />
+              <div className="absolute inset-y-0 left-1/4 w-px bg-slate-800/30" />
+              <div className="absolute inset-y-0 left-3/4 w-px bg-slate-800/30" />
+              <div className="absolute inset-x-0 top-1/4 h-px bg-slate-800/30" />
+              <div className="absolute inset-x-0 top-3/4 h-px bg-slate-800/30" />
+
+              {minimap.map((dot) => {
+                const left = `${dot.x * 100}%`;
+                const top = `${dot.y * 100}%`;
+
+                if (dot.isCashingOut) {
+                  return (
+                    <div
+                      key={dot.id}
+                      style={{ left, top }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2"
+                      title={`${dot.username} CASHING OUT (${dot.solValue.toFixed(3)} SOL)`}
+                    >
+                      <span className="absolute -inset-2 rounded-full bg-amber-400/50 animate-ping" />
+                      <span className="relative block w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-amber-200 shadow-lg shadow-amber-400/80" />
+                    </div>
+                  );
+                }
+
+                if (dot.isMe) {
+                  return (
+                    <div
+                      key={dot.id}
+                      style={{ left, top }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 z-10"
+                    >
+                      <span className="block w-2.5 h-2.5 rounded-full bg-cyan-400 ring-2 ring-white shadow-lg shadow-cyan-400/70" />
+                    </div>
+                  );
+                }
+
+                if (dot.isLeader) {
+                  return (
+                    <div
+                      key={dot.id}
+                      style={{ left, top }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2"
+                    >
+                      <span className="block w-2 h-2 rounded-full bg-purple-400 ring-1 ring-purple-200" />
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={dot.id}
+                    style={{ left, top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2"
+                  >
+                    <span className="block w-1.5 h-1.5 rounded-full bg-slate-400/70" />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Radar Legend */}
+            <div className="mt-1.5 flex items-center justify-between text-[9px] text-slate-400 px-0.5">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" /> You
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" /> #1
+              </span>
+              <span className="flex items-center gap-1 text-amber-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Cash-Out
+              </span>
+            </div>
+          </div>
+
+          <div className="hidden sm:block rounded-xl bg-[#0b0f19]/80 backdrop-blur-md border border-slate-800 px-3.5 py-2 text-[11px] text-slate-400">
+            <span className="text-cyan-400 font-bold">SPACE</span> Split &nbsp;•&nbsp;{' '}
+            <span className="text-cyan-400 font-bold">W</span> Eject &nbsp;•&nbsp;{' '}
+            <span className="text-amber-400 font-bold">HOLD C</span> Cash Out (5s)
+          </div>
         </div>
 
+        {/* Bottom-Right: Hold-to-Cash-Out Button */}
         <button
           onMouseDown={startCashOut}
           onMouseUp={cancelCashOut}
@@ -128,7 +247,7 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
             <LogOut className="w-4 h-4 absolute" />
           </div>
           <div className="text-left">
-            <div>{isCashingOut ? 'CHANNELING...' : 'HOLD TO CASH OUT'}</div>
+            <div>{isCashingOut ? 'CHANNELING...' : isPractice ? 'EXIT SANDBOX' : 'HOLD TO CASH OUT'}</div>
             <div className="text-[11px] font-mono font-normal text-slate-400">
               {isCashingOut
                 ? `${Math.max(0, 5 - progress * 5).toFixed(1)}s remaining`

@@ -1,4 +1,4 @@
-export type LobbyTierId = 'micro' | 'standard' | 'whale';
+export type LobbyTierId = 'practice' | 'micro' | 'standard' | 'whale';
 
 export interface LobbyTierConfig {
   id: LobbyTierId;
@@ -9,9 +9,23 @@ export interface LobbyTierConfig {
   maxPellets: number;
   maxViruses: number;
   accentColor: string;
+  isPractice?: boolean;
+  botCount?: number;
 }
 
 export const LOBBY_TIERS: Record<LobbyTierId, LobbyTierConfig> = {
+  practice: {
+    id: 'practice',
+    name: 'Practice Sandbox',
+    buyInSol: 0,
+    buyInLamports: 0,
+    arenaSize: 3200,
+    maxPellets: 350,
+    maxViruses: 10,
+    accentColor: '#38bdf8',
+    isPractice: true,
+    botCount: 8,
+  },
   micro: {
     id: 'micro',
     name: 'Micro Arena',
@@ -102,13 +116,27 @@ export interface LeaderboardEntry {
   isCashingOut: boolean;
 }
 
+export interface MinimapDot {
+  id: string;
+  x: number; // normalized 0..1
+  y: number; // normalized 0..1
+  isMe: boolean;
+  isCashingOut: boolean;
+  isLeader: boolean;
+  cashoutProgress: number;
+  solValue: number;
+  username: string;
+}
+
 export interface GameStateSnapshot {
   tick: number;
   arenaSize: number;
+  isPractice: boolean;
   cells: NetCell[];
   pellets: NetPellet[];
   viruses: NetVirus[];
   leaderboard: LeaderboardEntry[];
+  minimap: MinimapDot[];
   playerCount: number;
   myTotalMass: number;
   myTotalLamports: number;
@@ -130,6 +158,7 @@ export interface LobbyStats {
   id: LobbyTierId;
   name: string;
   buyInSol: number;
+  isPractice?: boolean;
   playerCount: number;
   totalPotSol: number;
   leaderboard: LeaderboardEntry[];
@@ -138,8 +167,8 @@ export interface LobbyStats {
 export interface JoinArenaPayload {
   lobbyId: LobbyTierId;
   username: string;
-  walletAddress: string;
-  txSignature: string;
+  walletAddress?: string;
+  txSignature?: string;
   skinId: string;
 }
 
@@ -149,4 +178,38 @@ export interface CashOutResult {
   rakeSol: number;
   netSol: number;
   explorerUrl: string;
+  isPractice?: boolean;
+}
+
+export interface HallOfFameData {
+  stats: {
+    totalDepositsSol: number;
+    totalPayoutsSol: number;
+    totalKills: number;
+    totalCashOuts: number;
+  };
+  topCashOuts: {
+    id: string;
+    walletShort: string;
+    lobbyTier: string;
+    netSol: number;
+    txSignature: string | null;
+    explorerUrl: string | null;
+    createdAt: string;
+  }[];
+  topHunters: {
+    walletShort: string;
+    username: string;
+    kills: number;
+    totalBountySol: number;
+  }[];
+  recentPayouts: {
+    id: string;
+    walletShort: string;
+    lobbyTier: string;
+    netSol: number;
+    txSignature: string | null;
+    explorerUrl: string | null;
+    createdAt: string;
+  }[];
 }

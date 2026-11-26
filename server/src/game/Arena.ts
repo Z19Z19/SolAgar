@@ -5,6 +5,7 @@ import {
   KillFeedEvent,
   LeaderboardEntry,
   LobbyTierConfig,
+  MinimapDot,
   NetCell,
   NetPellet,
   NetVirus,
@@ -58,9 +59,24 @@ export interface PlayerSession {
   disconnectedAt: number | null;
   lastMoveAt: number;
   lastActionAt: number;
+  isBot?: boolean;
+  botDecisionAt?: number;
   // Anti-teaming tracker: targetWallet -> timestamps of ejects eaten
   feedTracker: Map<string, number[]>;
 }
+
+const BOT_NAMES = [
+  'SolBot',
+  'DegenAI',
+  'WhaleBot',
+  'NeonOrca',
+  'ApexCell',
+  'PhantomAI',
+  'PixelShark',
+  'OrbitBot',
+  'HyperBlob',
+  'SolViper',
+];
 
 const PELLET_COLORS = [
   '#22d3ee',
@@ -129,6 +145,59 @@ export class Arena {
     for (let i = 0; i < this.tier.maxViruses; i++) {
       this.spawnVirus();
     }
+    const targetBots = this.tier.botCount ?? 0;
+    for (let i = 0; i < targetBots; i++) {
+      this.spawnPracticeBot();
+    }
+  }
+
+  private spawnPracticeBot(): void {
+    const skin = PLAYER_SKINS[Math.floor(Math.random() * PLAYER_SKINS.length)];
+    const botId = randomId('bot');
+    const name = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+    const margin = 250;
+    const spawnX = margin + Math.random() * (this.tier.arenaSize - margin * 2);
+    const spawnY = margin + Math.random() * (this.tier.arenaSize - margin * 2);
+    const initialMass = 18 + Math.floor(Math.random() * 28);
+
+    const cell: CellEntity = {
+      id: randomId('c'),
+      ownerId: botId,
+      username: `[BOT] ${name}`,
+      x: spawnX,
+      y: spawnY,
+      mass: initialMass,
+      radius: massToRadius(initialMass),
+      lamports: 50_000_000, // Virtual 0.05 Practice SOL
+      vx: 0,
+      vy: 0,
+      boostVx: 0,
+      boostVy: 0,
+      mergeAt: 0,
+      fill: skin.fill,
+      border: skin.border,
+    };
+
+    this.players.set(botId, {
+      id: botId,
+      socketId: `bot_socket_${botId}`,
+      walletAddress: 'PRACTICE_BOT',
+      username: `[BOT] ${name}`,
+      fill: skin.fill,
+      border: skin.border,
+      inputDx: (Math.random() - 0.5) * 400,
+      inputDy: (Math.random() - 0.5) * 400,
+      cells: [cell],
+      isCashingOut: false,
+      cashoutStartedAt: null,
+      cashoutProcessing: false,
+      disconnectedAt: null,
+      lastMoveAt: Date.now(),
+      lastActionAt: 0,
+      isBot: true,
+      botDecisionAt: 0,
+      feedTracker: new Map(),
+    });
   }
 
   private spawnPellet(): void {
@@ -469,6 +538,11 @@ export class Arena {
       }
     }
 
+    // 3b. Update AI bots in Practice Sandbox
+    if (this.tier.botCount && this.tier.botCount > 0) {
+      this.updateBots(now);
+    }
+
     // 4. Update player cells (movement, boost damping, mass decay, own-cell separation/merging)
     for (const player of this.players.values()) {
       if (player.cashoutProcessing) continue;
@@ -743,6 +817,101 @@ export class Arena {
     }
   }
 
+  private updateBots(now: number): void {
+    const targetBots = this.tier.botCount ?? 0;
+    let botCount = 0;
+
+    for (const bot of this.players.values()) {
+      if (!bot.isBot) continue;
+      botCount++;
+      if (bot.cells.length === 0) continue;
+      if (bot.botDecisionAt && now < bot.botDecisionAt) continue;
+
+      bot.botDecisionAt = now + 220 + Math.random() * 180;
+      const primary = bot.cells[0];
+
+      // Stay away from arena walls
+      const wallMargin = 180;
+      if (
+        primary.x < wallMargin ||
+        primary.x > this.tier.arenaSize - wallMargin ||
+        primary.y < wallMargin ||
+        primary.y > this.tier.arenaSize - wallMargin
+      ) {
+        bot.inputDx = this.tier.arenaSize / 2 - primary.x;
+        bot.inputDy = this.tier.arenaSize / 2 - primary.y;
+        continue;
+      }
+
+      const scanRange = 460;
+      const scanBounds = {
+        x: primary.x - scanRange,
+        y: primary.y - scanRange,
+        w: scanRange * 2,
+        h: scanRange * 2,
+      };
+
+      // 1. Check nearby threats or prey
+      const nearbyCells = this.cellTree.query(scanBounds);
+      let threatX = 0;
+      let threatY = 0;
+      let hasThreat = false;
+      let prey: CellEntity | null = null;
+      let preyDist = Infinity;
+
+      for (const other of nearbyCells) {
+        if (other.ownerId === bot.id) continue;
+        const d = Math.hypot(other.x - primary.x, other.y - primary.y);
+        if (other.mass > primary.mass * 1.15 && d < 320) {
+          threatX += primary.x - other.x;
+          threatY += primary.y - other.y;
+          hasThreat = true;
+        } else if (primary.mass > other.mass * 1.2 && d < preyDist) {
+          prey = other;
+          preyDist = d;
+        }
+      }
+
+      if (hasThreat) {
+        bot.inputDx = threatX * 4;
+        bot.inputDy = threatY * 4;
+        continue;
+      }
+
+      if (prey) {
+        bot.inputDx = (prey.x - primary.x) * 2;
+        bot.inputDy = (prey.y - primary.y) * 2;
+        continue;
+      }
+
+      // 2. Otherwise seek nearest pellet
+      const nearbyPellets = this.pelletTree.query(scanBounds);
+      let nearestPellet: PelletEntity | null = null;
+      let bestDist = Infinity;
+      for (const p of nearbyPellets) {
+        const d = Math.hypot(p.x - primary.x, p.y - primary.y);
+        if (d < bestDist) {
+          bestDist = d;
+          nearestPellet = p;
+        }
+      }
+
+      if (nearestPellet) {
+        bot.inputDx = (nearestPellet.x - primary.x) * 3;
+        bot.inputDy = (nearestPellet.y - primary.y) * 3;
+      } else {
+        const angle = Math.random() * Math.PI * 2;
+        bot.inputDx = Math.cos(angle) * 400;
+        bot.inputDy = Math.sin(angle) * 400;
+      }
+    }
+
+    while (botCount < targetBots) {
+      this.spawnPracticeBot();
+      botCount++;
+    }
+  }
+
   private onCellEaten(killer: PlayerSession, victim: PlayerSession, bountyLamports: number): void {
     const bountySol = bountyLamports / 1_000_000_000;
     const killEvent: KillFeedEvent = {
@@ -756,34 +925,39 @@ export class Arena {
     // Broadcast kill feed to everyone in this arena
     this.io.to(`arena:${this.tier.id}`).emit('arena:kill', killEvent);
 
-    // Log kill event to Prisma asynchronously
-    prisma.killEvent
-      .create({
-        data: {
-          lobbyTier: this.tier.id,
-          killerWallet: killer.walletAddress,
-          killerName: killer.username,
-          victimWallet: victim.walletAddress,
-          victimName: victim.username,
-          bountyLamports: BigInt(bountyLamports),
-        },
-      })
-      .catch((err) => console.error('[DB] Failed to log kill event:', err));
+    // Log real-SOL kill events to Prisma asynchronously (skip practice mode / bots)
+    if (!this.tier.isPractice && !killer.isBot && !victim.isBot) {
+      prisma.killEvent
+        .create({
+          data: {
+            lobbyTier: this.tier.id,
+            killerWallet: killer.walletAddress,
+            killerName: killer.username,
+            victimWallet: victim.walletAddress,
+            victimName: victim.username,
+            bountyLamports: BigInt(bountyLamports),
+          },
+        })
+        .catch((err) => console.error('[DB] Failed to log kill event:', err));
+    }
 
     // If victim has no cells left, notify them of elimination and clean up
     if (victim.cells.length === 0) {
       victim.isCashingOut = false;
       victim.cashoutStartedAt = null;
-      this.io.to(victim.socketId).emit('player:eliminated', {
-        killerName: killer.username,
-        bountySol,
-      });
+      if (!victim.isBot) {
+        this.io.to(victim.socketId).emit('player:eliminated', {
+          killerName: killer.username,
+          bountySol,
+        });
+      }
       this.socketToPlayer.delete(victim.socketId);
       this.players.delete(victim.id);
     }
   }
 
   private recordFeedEvent(ejectorWallet: string, receiverWallet: string, now: number): void {
+    if (this.tier.isPractice) return;
     const receiver = Array.from(this.players.values()).find((p) => p.walletAddress === receiverWallet);
     if (!receiver) return;
 
@@ -817,6 +991,21 @@ export class Arena {
     this.socketToPlayer.delete(player.socketId);
     this.players.delete(player.id);
 
+    // Practice Sandbox: instant simulated cash-out without on-chain transfer
+    if (this.tier.isPractice) {
+      const virtualSol = totalLamports / 1_000_000_000;
+      const result: CashOutResult = {
+        txSignature: 'PRACTICE_MODE',
+        grossSol: virtualSol,
+        rakeSol: 0,
+        netSol: virtualSol,
+        explorerUrl: '',
+        isPractice: true,
+      };
+      this.io.to(player.socketId).emit('cashout:success', result);
+      return;
+    }
+
     try {
       const result: CashOutResult = await escrowService.executeCashOut({
         walletAddress: player.walletAddress,
@@ -832,10 +1021,57 @@ export class Arena {
 
   private broadcastState(now: number): void {
     const leaderboard = this.getLeaderboard();
+    const leaderId = leaderboard[0]?.playerId ?? null;
     const playerCount = this.players.size;
 
+    // Pre-compute normalized minimap data once per tick (Cash-Out Radar + Leader + Active Players)
+    const rawMinimapPoints: {
+      playerId: string;
+      x: number;
+      y: number;
+      isCashingOut: boolean;
+      isLeader: boolean;
+      cashoutProgress: number;
+      solValue: number;
+      username: string;
+      totalMass: number;
+    }[] = [];
+
+    for (const p of this.players.values()) {
+      if (p.cells.length === 0) continue;
+      let m = 0;
+      let lamports = 0;
+      let sx = 0;
+      let sy = 0;
+      for (const c of p.cells) {
+        m += c.mass;
+        lamports += c.lamports;
+        sx += c.x * c.mass;
+        sy += c.y * c.mass;
+      }
+      if (m <= 0) continue;
+      const cx = sx / m;
+      const cy = sy / m;
+      const cashoutProgress =
+        p.isCashingOut && p.cashoutStartedAt
+          ? Math.min(1, (now - p.cashoutStartedAt) / config.cashoutChannelMs)
+          : 0;
+
+      rawMinimapPoints.push({
+        playerId: p.id,
+        x: Math.max(0, Math.min(1, cx / this.tier.arenaSize)),
+        y: Math.max(0, Math.min(1, cy / this.tier.arenaSize)),
+        isCashingOut: p.isCashingOut,
+        isLeader: p.id === leaderId,
+        cashoutProgress,
+        solValue: lamports / 1_000_000_000,
+        username: p.username,
+        totalMass: m,
+      });
+    }
+
     for (const player of this.players.values()) {
-      if (player.disconnectedAt !== null || player.cells.length === 0) continue;
+      if (player.isBot || player.disconnectedAt !== null || player.cells.length === 0) continue;
 
       let totalMass = 0;
       let totalLamports = 0;
@@ -909,13 +1145,36 @@ export class Arena {
           ? Math.min(1, (now - player.cashoutStartedAt) / config.cashoutChannelMs)
           : 0;
 
+      // Send minimap dots: self + anyone cashing out + #1 leader + up to 12 other players
+      const minimap: MinimapDot[] = [];
+      let otherCount = 0;
+      for (const pt of rawMinimapPoints) {
+        const isMe = pt.playerId === player.id;
+        if (isMe || pt.isCashingOut || pt.isLeader || otherCount < 12) {
+          if (!isMe && !pt.isCashingOut && !pt.isLeader) otherCount++;
+          minimap.push({
+            id: pt.playerId,
+            x: Math.round(pt.x * 1000) / 1000,
+            y: Math.round(pt.y * 1000) / 1000,
+            isMe,
+            isCashingOut: pt.isCashingOut,
+            isLeader: pt.isLeader,
+            cashoutProgress: pt.cashoutProgress,
+            solValue: Math.round(pt.solValue * 1000) / 1000,
+            username: pt.username,
+          });
+        }
+      }
+
       const snapshot: GameStateSnapshot = {
         tick: this.tickCount,
         arenaSize: this.tier.arenaSize,
+        isPractice: Boolean(this.tier.isPractice),
         cells: visibleCells,
         pellets: visiblePellets,
         viruses: visibleViruses,
         leaderboard,
+        minimap,
         playerCount,
         myTotalMass: Math.round(totalMass),
         myTotalLamports: totalLamports,

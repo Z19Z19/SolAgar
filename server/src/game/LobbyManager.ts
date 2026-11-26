@@ -6,6 +6,7 @@ import {
   LobbyTierId,
 } from '@shared/types';
 import { escrowService } from '../solana/escrowService';
+import { SocketEventThrottle } from '../security/rateLimiter';
 import { Arena } from './Arena';
 
 export class LobbyManager {
@@ -22,6 +23,12 @@ export class LobbyManager {
     }
   }
 
+  public stopAll(): void {
+    for (const arena of this.arenas.values()) {
+      arena.stop();
+    }
+  }
+
   public getLobbyStats(): LobbyStats[] {
     return Object.values(LOBBY_TIERS).map((tier) => {
       const arena = this.arenas.get(tier.id)!;
@@ -29,6 +36,7 @@ export class LobbyManager {
         id: tier.id,
         name: tier.name,
         buyInSol: tier.buyInSol,
+        isPractice: tier.isPractice,
         playerCount: arena.getPlayerCount(),
         totalPotSol: arena.getTotalPotLamports() / 1_000_000_000,
         leaderboard: arena.getLeaderboard(),
@@ -37,8 +45,26 @@ export class LobbyManager {
   }
 
   public registerSocket(socket: Socket): void {
+    const throttle = new SocketEventThrottle(150);
+
+    const checkThrottle = (): boolean => {
+      const res = throttle.allow();
+      if (res.shouldDisconnect) {
+        socket.emit('arena:error', { message: 'Disconnected: event rate limit exceeded.' });
+        socket.disconnect(true);
+        return false;
+      }
+      return res.ok;
+    };
+
     socket.on('arena:join', async (payload: JoinArenaPayload) => {
+      if (!checkThrottle()) return;
       try {
+        if (!payload || typeof payload !== 'object') {
+          socket.emit('arena:error', { message: 'Invalid join payload.' });
+          return;
+        }
+
         if (this.socketArena.has(socket.id)) {
           socket.emit('arena:error', { message: 'Already in an active arena.' });
           return;
@@ -51,24 +77,50 @@ export class LobbyManager {
           return;
         }
 
-        const cleanName = (username || 'Anon').trim().slice(0, 16) || 'Anon';
-        if (!txSignature || !walletAddress) {
-          socket.emit('arena:error', { message: 'Wallet address and deposit tx signature required.' });
-          return;
-        }
+        const cleanName =
+          String(username || 'Anon')
+            .replace(/[^\w\s\-_.]/g, '')
+            .trim()
+            .slice(0, 16) || 'Anon';
+        const cleanSkin = typeof skinId === 'string' ? skinId.slice(0, 32) : 'cyber-cyan';
 
-        // Verify deposit on Solana & record in DB (with replay protection)
-        const { netLamports } = await escrowService.verifyAndRecordDeposit({
-          walletAddress,
-          lobbyId,
-          txSignature,
-        });
+        let netLamports = 0;
+        let effectiveWallet = walletAddress || 'PRACTICE_GUEST';
+
+        if (arena.tier.isPractice) {
+          // Free Practice Sandbox: zero buy-in, virtual 0.10 SOL starting bounty
+          netLamports = 100_000_000;
+          effectiveWallet =
+            typeof walletAddress === 'string' && walletAddress.length >= 32
+              ? walletAddress
+              : `PRACTICE_${socket.id.slice(0, 8)}`;
+        } else {
+          if (
+            typeof txSignature !== 'string' ||
+            txSignature.length < 32 ||
+            typeof walletAddress !== 'string' ||
+            walletAddress.length < 32
+          ) {
+            socket.emit('arena:error', {
+              message: 'Valid Solana wallet address and deposit tx signature required.',
+            });
+            return;
+          }
+
+          // Verify deposit on Solana & record in DB (with replay protection)
+          const verified = await escrowService.verifyAndRecordDeposit({
+            walletAddress,
+            lobbyId,
+            txSignature,
+          });
+          netLamports = verified.netLamports;
+        }
 
         const session = arena.spawnPlayer({
           socketId: socket.id,
-          walletAddress,
+          walletAddress: effectiveWallet,
           username: cleanName,
-          skinId,
+          skinId: cleanSkin,
           netLamports,
         });
 
@@ -80,6 +132,7 @@ export class LobbyManager {
           lobbyId,
           arenaSize: arena.tier.arenaSize,
           netSol: netLamports / 1_000_000_000,
+          isPractice: Boolean(arena.tier.isPractice),
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to join arena';
@@ -88,30 +141,36 @@ export class LobbyManager {
     });
 
     socket.on('player:move', (data: { dx: number; dy: number }) => {
+      if (!checkThrottle()) return;
+      if (!data || typeof data.dx !== 'number' || typeof data.dy !== 'number') return;
       const arenaId = this.socketArena.get(socket.id);
       if (!arenaId) return;
       this.arenas.get(arenaId)?.handleMove(socket.id, data.dx, data.dy);
     });
 
     socket.on('player:split', () => {
+      if (!checkThrottle()) return;
       const arenaId = this.socketArena.get(socket.id);
       if (!arenaId) return;
       this.arenas.get(arenaId)?.handleSplit(socket.id);
     });
 
     socket.on('player:eject', () => {
+      if (!checkThrottle()) return;
       const arenaId = this.socketArena.get(socket.id);
       if (!arenaId) return;
       this.arenas.get(arenaId)?.handleEject(socket.id);
     });
 
     socket.on('cashout:start', () => {
+      if (!checkThrottle()) return;
       const arenaId = this.socketArena.get(socket.id);
       if (!arenaId) return;
       this.arenas.get(arenaId)?.handleCashOutStart(socket.id);
     });
 
     socket.on('cashout:cancel', () => {
+      if (!checkThrottle()) return;
       const arenaId = this.socketArena.get(socket.id);
       if (!arenaId) return;
       this.arenas.get(arenaId)?.handleCashOutCancel(socket.id);
