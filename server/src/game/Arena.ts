@@ -282,7 +282,8 @@ export class Arena {
       const nx = dx / dist;
       const ny = dy / dist;
 
-      const mergeDelay = 15000 + cell.mass * 20;
+      // Short 1.5s launch grace period so split cells shoot out cleanly before they can remerge
+      const mergeDelay = 1500;
       cell.mergeAt = now + mergeDelay;
 
       const childRadius = massToRadius(mass2);
@@ -580,16 +581,28 @@ export class Arena {
 
         const canMerge = now >= a.mergeAt && now >= b.mergeAt;
         if (canMerge) {
-          if (dist < Math.max(a.radius, b.radius) * 0.75) {
-            // Merge b into a
-            a.mass += b.mass;
+          // Remerge as soon as the two cells overlap / get close enough
+          if (dist < minDist * 0.85) {
+            const totalMass = a.mass + b.mass;
+            a.x = (a.x * a.mass + b.x * b.mass) / totalMass;
+            a.y = (a.y * a.mass + b.y * b.mass) / totalMass;
+            a.mass = totalMass;
             a.lamports += b.lamports;
             a.radius = massToRadius(a.mass);
             cells.splice(j, 1);
             j--;
+          } else if (dist < minDist * 1.15) {
+            // Gentle magnetic pull when nearly touching so remerging feels snappy
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const pull = 2.5;
+            a.x += nx * pull;
+            a.y += ny * pull;
+            b.x -= nx * pull;
+            b.y -= ny * pull;
           }
         } else if (dist < minDist) {
-          // Push apart smoothly if not yet mergeable
+          // Push apart smoothly during initial launch separation
           const overlap = minDist - dist;
           const nx = dx / dist;
           const ny = dy / dist;
