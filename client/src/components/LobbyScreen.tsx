@@ -10,6 +10,7 @@ import {
   PLAYER_SKINS,
 } from '@shared/types';
 import { EscrowPublicInfo } from '@/lib/solanaDeposit';
+import { getServerUrl } from '@/lib/serverUrl';
 import {
   Coins,
   ExternalLink,
@@ -213,10 +214,7 @@ export function LobbyScreen({
               <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
                 <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>
-                  Cannot reach Game Server at{' '}
-                  <code>{process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000'}</code>. Make sure{' '}
-                  <code>NEXT_PUBLIC_SERVER_URL</code> points to your live Railway backend URL (starting with{' '}
-                  <code>https://</code>).
+                  Connecting to Game Server at <code>{getServerUrl()}</code>...
                 </span>
               </div>
             )}

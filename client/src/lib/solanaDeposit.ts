@@ -6,6 +6,8 @@ import {
 } from '@solana/web3.js';
 import { LOBBY_TIERS, LobbyTierId } from '@shared/types';
 
+import { getServerUrl } from './serverUrl';
+
 export interface EscrowPublicInfo {
   network: 'devnet' | 'mainnet-beta';
   rpcUrl: string;
@@ -17,7 +19,7 @@ export interface EscrowPublicInfo {
 }
 
 export async function fetchEscrowInfo(): Promise<EscrowPublicInfo> {
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
+  const serverUrl = getServerUrl();
   const res = await fetch(`${serverUrl}/api/escrow-info`);
   if (!res.ok) {
     throw new Error('Failed to fetch escrow configuration from game server.');
