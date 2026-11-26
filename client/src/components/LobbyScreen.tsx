@@ -19,7 +19,6 @@ import {
   Sparkles,
   Trophy,
   Users,
-  Zap,
 } from 'lucide-react';
 
 const WalletMultiButton = dynamic(
@@ -67,9 +66,11 @@ export function LobbyScreen({
       <header className="border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <Zap className="w-5 h-5 text-slate-950 fill-slate-950" />
-            </div>
+            <img
+              src="/logo.jpg"
+              alt="SolAgar Logo"
+              className="w-10 h-10 rounded-xl object-cover border border-emerald-400/40 shadow-lg shadow-emerald-500/20"
+            />
             <div>
               <span className="text-xl font-black tracking-tight bg-gradient-to-r from-emerald-400 via-cyan-300 to-purple-400 bg-clip-text text-transparent">
                 SOLAGAR
