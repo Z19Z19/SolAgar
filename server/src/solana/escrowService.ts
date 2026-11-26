@@ -66,9 +66,16 @@ export class EscrowService {
   }
 
   public getPublicInfo() {
+    let safeRpcUrl = config.solanaRpcUrl;
+    try {
+      const u = new URL(config.solanaRpcUrl);
+      if (u.search) safeRpcUrl = `${u.origin}${u.pathname}`;
+    } catch {
+      // keep fallback
+    }
     return {
       network: config.solanaNetwork,
-      rpcUrl: config.solanaRpcUrl,
+      rpcUrl: safeRpcUrl,
       escrowPublicKey: this.escrowKeypair?.publicKey.toBase58() ?? null,
       treasuryPublicKey: this.treasuryPubkey?.toBase58() ?? null,
       rakeBps: config.rakeBps,
