@@ -70,3 +70,15 @@ model AntiCheatFlag {
 
   @@index([wallet])
 }
+
+model DailyFreeEntry {
+  id        String   @id @default(cuid())
+  wallet    String
+  ipHash    String
+  dayKey    String   // YYYY-MM-DD (UTC)
+  createdAt DateTime @default(now())
+
+  @@unique([wallet, dayKey])
+  @@unique([ipHash, dayKey])
+  @@index([dayKey])
+}

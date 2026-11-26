@@ -89,6 +89,8 @@ export interface NetCell {
   isCashingOut: boolean;
   cashoutProgress: number; // 0 to 1
   isDisconnected: boolean;
+  isFreeEntry?: boolean;
+  hasSpeedBoost?: boolean;
 }
 
 export interface NetPellet {
@@ -144,6 +146,7 @@ export interface GameStateSnapshot {
   myCenterY: number;
   isCashingOut: boolean;
   cashoutProgress: number;
+  speedBoostRemainingMs: number;
 }
 
 export interface KillFeedEvent {
@@ -151,6 +154,7 @@ export interface KillFeedEvent {
   killerName: string;
   victimName: string;
   bountySol: number;
+  boostReward?: boolean;
   timestamp: number;
 }
 
@@ -170,6 +174,15 @@ export interface JoinArenaPayload {
   walletAddress?: string;
   txSignature?: string;
   skinId: string;
+  isFreeEntry?: boolean;
+}
+
+export interface FreeTicketStatus {
+  eligible: boolean;
+  reason?: string;
+  activeFreePlayers: number;
+  maxFreePlayers: number;
+  dayKey: string;
 }
 
 export interface CashOutResult {

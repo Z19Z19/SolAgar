@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import {
   CashOutResult,
+  FreeTicketStatus,
   GameStateSnapshot,
   KillFeedEvent,
   LOBBY_TIERS,
@@ -12,6 +13,7 @@ import {
   PLAYER_SKINS,
 } from '@shared/types';
 import { getSocket } from '@/lib/socket';
+import { getServerUrl } from '@/lib/serverUrl';
 import {
   EscrowPublicInfo,
   fetchEscrowInfo,
@@ -28,7 +30,8 @@ export default function HomePage() {
 
   const [lobbies, setLobbies] = useState<LobbyStats[]>([]);
   const [escrowInfo, setEscrowInfo] = useState<EscrowPublicInfo | null>(null);
-  const [selectedLobby, setSelectedLobby] = useState<LobbyTierId>('practice');
+  const [freeTicketStatus, setFreeTicketStatus] = useState<FreeTicketStatus | null>(null);
+  const [selectedLobby, setSelectedLobby] = useState<LobbyTierId>('micro');
   const [username, setUsername] = useState('SolShark');
   const [skinId, setSkinId] = useState(PLAYER_SKINS[0].id);
 
@@ -49,11 +52,25 @@ export default function HomePage() {
 
   const socket = getSocket();
 
+  const refreshFreeTicketStatus = useCallback(() => {
+    const query = publicKey ? `?wallet=${encodeURIComponent(publicKey.toBase58())}` : '';
+    fetch(`${getServerUrl()}/api/free-ticket-status${query}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: FreeTicketStatus | null) => {
+        if (data) setFreeTicketStatus(data);
+      })
+      .catch(() => {});
+  }, [publicKey]);
+
   useEffect(() => {
     fetchEscrowInfo()
       .then(setEscrowInfo)
       .catch((err) => console.error('Failed to load escrow info:', err));
   }, []);
+
+  useEffect(() => {
+    refreshFreeTicketStatus();
+  }, [refreshFreeTicketStatus, inArena]);
 
   useEffect(() => {
     const onLobbies = (stats: LobbyStats[]) => setLobbies(stats);
@@ -164,11 +181,26 @@ export default function HomePage() {
     }
   }, [connection, escrowInfo, publicKey, selectedLobby, sendTransaction, skinId, socket, username]);
 
+  const handleClaimFreeMicro = useCallback(async () => {
+    if (!publicKey) return;
+    setErrorMsg(null);
+    setIsJoining(true);
+
+    socket.emit('arena:join', {
+      lobbyId: 'micro',
+      username,
+      walletAddress: publicKey.toBase58(),
+      skinId,
+      isFreeEntry: true,
+    });
+  }, [publicKey, skinId, socket, username]);
+
   const handleReturnToLobby = () => {
     setCashOutResult(null);
     setEliminatedInfo(null);
     stateRef.current = null;
     setHudSnapshot(null);
+    refreshFreeTicketStatus();
   };
 
   return (
@@ -182,6 +214,7 @@ export default function HomePage() {
         <LobbyScreen
           lobbies={lobbies}
           escrowInfo={escrowInfo}
+          freeTicketStatus={freeTicketStatus}
           selectedLobby={selectedLobby}
           onSelectLobby={setSelectedLobby}
           username={username}
@@ -189,6 +222,7 @@ export default function HomePage() {
           skinId={skinId}
           onSelectSkin={setSkinId}
           onJoinArena={handleJoinArena}
+          onClaimFreeMicro={handleClaimFreeMicro}
           isJoining={isJoining}
           errorMsg={errorMsg}
         />

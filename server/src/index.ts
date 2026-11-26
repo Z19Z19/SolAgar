@@ -9,9 +9,11 @@ import { escrowService } from './solana/escrowService';
 import { LobbyManager } from './game/LobbyManager';
 import {
   createHttpRateLimiter,
+  getClientIp,
   securityHeaders,
   SocketConnectionGuard,
 } from './security/rateLimiter';
+import { checkFreeTicketStatus } from './security/freeTicketService';
 
 const app = express();
 app.disable('x-powered-by');
@@ -72,6 +74,21 @@ app.get('/api/escrow-info', (_req, res) => {
 
 app.get('/api/lobbies', (_req, res) => {
   res.json({ lobbies: lobbyManager.getLobbyStats() });
+});
+
+app.get('/api/free-ticket-status', async (req, res) => {
+  try {
+    const wallet = typeof req.query.wallet === 'string' ? req.query.wallet : undefined;
+    const status = await checkFreeTicketStatus({
+      wallet,
+      ip: getClientIp(req),
+      activeFreePlayers: lobbyManager.getActiveFreePlayerCount('micro'),
+    });
+    res.json(status);
+  } catch (err) {
+    console.error('[FreeTicket] Status check failed:', err);
+    res.status(500).json({ error: 'Failed to check free ticket eligibility.' });
+  }
 });
 
 app.get('/api/hall-of-fame', async (_req, res) => {

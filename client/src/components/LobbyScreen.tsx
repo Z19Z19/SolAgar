@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useWallet } from '@solana/wallet-adapter-react';
 import {
+  FreeTicketStatus,
   LOBBY_TIERS,
   LobbyStats,
   LobbyTierId,
@@ -20,6 +21,7 @@ import {
   Gamepad2,
   ShieldAlert,
   Sparkles,
+  Ticket,
   Trophy,
   Users,
 } from 'lucide-react';
@@ -32,6 +34,7 @@ const WalletMultiButton = dynamic(
 interface LobbyScreenProps {
   lobbies: LobbyStats[];
   escrowInfo: EscrowPublicInfo | null;
+  freeTicketStatus: FreeTicketStatus | null;
   selectedLobby: LobbyTierId;
   onSelectLobby: (id: LobbyTierId) => void;
   username: string;
@@ -39,6 +42,7 @@ interface LobbyScreenProps {
   skinId: string;
   onSelectSkin: (id: string) => void;
   onJoinArena: () => Promise<void>;
+  onClaimFreeMicro: () => Promise<void>;
   isJoining: boolean;
   errorMsg: string | null;
 }
@@ -46,6 +50,7 @@ interface LobbyScreenProps {
 export function LobbyScreen({
   lobbies,
   escrowInfo,
+  freeTicketStatus,
   selectedLobby,
   onSelectLobby,
   username,
@@ -53,6 +58,7 @@ export function LobbyScreen({
   skinId,
   onSelectSkin,
   onJoinArena,
+  onClaimFreeMicro,
   isJoining,
   errorMsg,
 }: LobbyScreenProps) {
@@ -345,6 +351,45 @@ export function LobbyScreen({
                     ? 'SIGNING & VERIFYING ON SOLANA...'
                     : `DEPOSIT ${activeTier.buyInSol} SOL & SPAWN`}
                 </button>
+
+                {/* Daily Free Ticket into Micro Arena */}
+                {selectedLobby === 'micro' && (
+                  <div className="mt-3 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <Ticket className="w-4 h-4 text-sky-400" />
+                        <span className="text-xs font-black uppercase tracking-wider text-sky-300">
+                          Daily Free Ticket (1 / Day)
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        Slots: {freeTicketStatus?.activeFreePlayers ?? 0}/
+                        {freeTicketStatus?.maxFreePlayers ?? 4}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 mb-3">
+                      Enter Micro Arena with <strong className="text-white">0 SOL</strong> and hunt paying players for real SOL! Anyone who eats a Free Ticket player earns{' '}
+                      <strong className="text-sky-300">+25 Mass &amp; a 4s Speed Boost</strong>.
+                    </p>
+                    <button
+                      onClick={onClaimFreeMicro}
+                      disabled={
+                        !connected ||
+                        isJoining ||
+                        !escrowInfo?.configured ||
+                        !freeTicketStatus?.eligible
+                      }
+                      className="w-full py-2.5 rounded-lg font-extrabold text-xs tracking-wide bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                    >
+                      <Ticket className="w-4 h-4" />
+                      {!connected
+                        ? 'CONNECT WALLET TO CLAIM DAILY FREE TICKET'
+                        : freeTicketStatus && !freeTicketStatus.eligible
+                        ? freeTicketStatus.reason || 'FREE TICKET USED TODAY (RESETS 00:00 UTC)'
+                        : 'CLAIM DAILY FREE ENTRY (0 SOL)'}
+                    </button>
+                  </div>
+                )}
 
                 <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
                   <span>

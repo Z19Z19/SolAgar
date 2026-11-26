@@ -128,6 +128,8 @@ export function GameCanvas({ socket, stateRef, myPlayerId }: GameCanvasProps) {
           existing.isCashingOut = netCell.isCashingOut;
           existing.cashoutProgress = netCell.cashoutProgress;
           existing.isDisconnected = netCell.isDisconnected;
+          existing.isFreeEntry = netCell.isFreeEntry;
+          existing.hasSpeedBoost = netCell.hasSpeedBoost;
           existing.renderX += (netCell.x - existing.renderX) * lerpFactor;
           existing.renderY += (netCell.y - existing.renderY) * lerpFactor;
           existing.renderRadius += (netCell.radius - existing.renderRadius) * lerpFactor;
@@ -264,14 +266,35 @@ export function GameCanvas({ socket, stateRef, myPlayerId }: GameCanvasProps) {
           ctx.restore();
         }
 
+        // Active Speed Boost electric aura
+        if (cell.hasSpeedBoost) {
+          const boostPulse = 1 + Math.sin(timeSec * 14) * 0.06;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, (cr + 8) * boostPulse, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
+          ctx.lineWidth = 4;
+          ctx.shadowColor = '#38bdf8';
+          ctx.shadowBlur = 16;
+          ctx.stroke();
+          ctx.restore();
+        }
+
         // Cell body
+        ctx.save();
         ctx.beginPath();
         ctx.arc(cx, cy, cr, 0, Math.PI * 2);
         ctx.fillStyle = cell.fill;
         ctx.fill();
         ctx.lineWidth = Math.max(3, cr * 0.08);
-        ctx.strokeStyle = cell.ownerId === myPlayerId ? '#ffffff' : cell.border;
+        if (cell.isFreeEntry) {
+          ctx.setLineDash([8, 6]);
+          ctx.strokeStyle = '#cbd5e1';
+        } else {
+          ctx.strokeStyle = cell.ownerId === myPlayerId ? '#ffffff' : cell.border;
+        }
         ctx.stroke();
+        ctx.restore();
 
         // Disconnected badge
         if (cell.isDisconnected) {
@@ -279,7 +302,7 @@ export function GameCanvas({ socket, stateRef, myPlayerId }: GameCanvasProps) {
           ctx.fill();
         }
 
-        // Floating text: Username + live SOL value
+        // Floating text: Username + live SOL value (or FREE +BOOST badge)
         const fontSize = Math.max(12, Math.min(28, cr * 0.34));
         ctx.font = `800 ${fontSize}px Inter, sans-serif`;
         ctx.textAlign = 'center';
@@ -292,12 +315,14 @@ export function GameCanvas({ socket, stateRef, myPlayerId }: GameCanvasProps) {
         ctx.fillStyle = '#ffffff';
         ctx.fillText(cell.username, cx, nameY);
 
-        const solText = `${(cell.lamports / 1_000_000_000).toFixed(3)} ${snap.isPractice ? 'vSOL' : 'SOL'}`;
+        const solText = cell.isFreeEntry
+          ? 'FREE (+BOOST)'
+          : `${(cell.lamports / 1_000_000_000).toFixed(3)} ${snap.isPractice ? 'vSOL' : 'SOL'}`;
         const solFontSize = Math.max(10, fontSize * 0.78);
         ctx.font = `700 ${solFontSize}px "JetBrains Mono", monospace`;
         const solY = cy + fontSize * 0.6;
         ctx.strokeText(solText, cx, solY);
-        ctx.fillStyle = '#6ee7b7';
+        ctx.fillStyle = cell.isFreeEntry ? '#38bdf8' : '#6ee7b7';
         ctx.fillText(solText, cx, solY);
       }
 

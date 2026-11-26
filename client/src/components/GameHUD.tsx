@@ -3,7 +3,7 @@
 import React from 'react';
 import { GameStateSnapshot, KillFeedEvent } from '@shared/types';
 import { Socket } from 'socket.io-client';
-import { Coins, Flame, LogOut, Radio, Trophy } from 'lucide-react';
+import { Coins, Flame, LogOut, Radio, Trophy, Zap } from 'lucide-react';
 
 interface GameHUDProps {
   snapshot: GameStateSnapshot | null;
@@ -17,11 +17,16 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
   const isCashingOut = snapshot?.isCashingOut ?? false;
   const progress = snapshot?.cashoutProgress ?? 0;
   const isPractice = snapshot?.isPractice ?? false;
+  const speedBoostMs = snapshot?.speedBoostRemainingMs ?? 0;
   const minimap = snapshot?.minimap ?? [];
+  const canCashOut = isPractice || mySol > 0;
 
   const enemyCashOuts = minimap.filter((m) => m.isCashingOut && !m.isMe);
 
-  const startCashOut = () => socket.emit('cashout:start');
+  const startCashOut = () => {
+    if (!canCashOut) return;
+    socket.emit('cashout:start');
+  };
   const cancelCashOut = () => socket.emit('cashout:cancel');
 
   const circumference = 2 * Math.PI * 24;
@@ -31,26 +36,40 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
     <div className="pointer-events-none fixed inset-0 z-20 flex flex-col justify-between p-4 sm:p-6">
       {/* Top Row: Live SOL HUD + Kill Feed + Leaderboard */}
       <div className="flex items-start justify-between gap-4">
-        {/* Top-Left: Player Balance & Mass */}
-        <div className="pointer-events-auto rounded-2xl bg-[#0b0f19]/85 backdrop-blur-md border border-slate-800 px-4 py-3 shadow-xl">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              {isPractice ? 'Virtual Practice Bounty' : 'Live Bounty Balance'}
-            </span>
-            {isPractice && (
-              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                SANDBOX
+        {/* Top-Left: Player Balance, Mass & Active Speed Boost */}
+        <div className="flex flex-col gap-2">
+          <div className="pointer-events-auto rounded-2xl bg-[#0b0f19]/85 backdrop-blur-md border border-slate-800 px-4 py-3 shadow-xl">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {isPractice ? 'Virtual Practice Bounty' : 'Live Bounty Balance'}
               </span>
-            )}
+              {isPractice && (
+                <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  SANDBOX
+                </span>
+              )}
+              {!isPractice && mySol === 0 && (
+                <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  FREE TICKET
+                </span>
+              )}
+            </div>
+            <div className="text-2xl font-black font-mono text-emerald-400 flex items-center gap-2">
+              <Coins className="w-5 h-5" />
+              {mySol.toFixed(4)} {isPractice ? 'vSOL' : 'SOL'}
+            </div>
+            <div className="text-xs text-slate-400 mt-0.5 font-mono">
+              Mass: <span className="text-white font-bold">{myMass}</span> • Players:{' '}
+              <span className="text-cyan-400 font-bold">{snapshot?.playerCount ?? 0}</span>
+            </div>
           </div>
-          <div className="text-2xl font-black font-mono text-emerald-400 flex items-center gap-2">
-            <Coins className="w-5 h-5" />
-            {mySol.toFixed(4)} {isPractice ? 'vSOL' : 'SOL'}
-          </div>
-          <div className="text-xs text-slate-400 mt-0.5 font-mono">
-            Mass: <span className="text-white font-bold">{myMass}</span> • Players:{' '}
-            <span className="text-cyan-400 font-bold">{snapshot?.playerCount ?? 0}</span>
-          </div>
+
+          {speedBoostMs > 0 && (
+            <div className="rounded-xl bg-sky-500/20 backdrop-blur-md border border-sky-400/60 px-3.5 py-2 text-xs font-black text-sky-300 flex items-center gap-2 shadow-lg animate-pulse">
+              <Zap className="w-4 h-4 text-sky-300 fill-sky-300" />
+              SPEED BOOST +25% ({(speedBoostMs / 1000).toFixed(1)}s)
+            </div>
+          )}
         </div>
 
         {/* Top-Center: Cash-Out Radar Alert + Kill Feed Toasts */}
@@ -67,13 +86,23 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
               key={k.id}
               className="px-3.5 py-1.5 rounded-full bg-[#0b0f19]/85 backdrop-blur-md border border-slate-800 text-xs flex items-center gap-1.5 shadow-lg"
             >
-              <Flame className="w-3.5 h-3.5 text-amber-400" />
+              {k.boostReward ? (
+                <Zap className="w-3.5 h-3.5 text-sky-400 fill-sky-400" />
+              ) : (
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+              )}
               <span className="font-bold text-white">{k.killerName}</span>
               <span className="text-slate-400">absorbed</span>
               <span className="font-bold text-rose-400">{k.victimName}</span>
-              <span className="font-mono font-bold text-emerald-400">
-                (+{k.bountySol.toFixed(3)} {isPractice ? 'vSOL' : 'SOL'})
-              </span>
+              {k.boostReward ? (
+                <span className="font-mono font-bold text-sky-400">
+                  (+25 MASS &amp; SPEED BOOST!)
+                </span>
+              ) : (
+                <span className="font-mono font-bold text-emerald-400">
+                  (+{k.bountySol.toFixed(3)} {isPractice ? 'vSOL' : 'SOL'})
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -211,13 +240,16 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
 
         {/* Bottom-Right: Hold-to-Cash-Out Button */}
         <button
+          disabled={!canCashOut}
           onMouseDown={startCashOut}
           onMouseUp={cancelCashOut}
           onMouseLeave={cancelCashOut}
           onTouchStart={startCashOut}
           onTouchEnd={cancelCashOut}
           className={`pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-2xl border font-black text-sm tracking-wide shadow-2xl transition-all ${
-            isCashingOut
+            !canCashOut
+              ? 'bg-[#0b0f19]/75 border-slate-700 text-slate-500 cursor-not-allowed opacity-70'
+              : isCashingOut
               ? 'bg-amber-500/20 border-amber-400 text-amber-300 scale-105'
               : 'bg-[#0b0f19]/90 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10'
           }`}
@@ -236,7 +268,7 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
                 cx="28"
                 cy="28"
                 r="24"
-                stroke={isCashingOut ? '#fbbf24' : '#10b981'}
+                stroke={isCashingOut ? '#fbbf24' : canCashOut ? '#10b981' : '#475569'}
                 strokeWidth="4"
                 fill="none"
                 strokeDasharray={circumference}
@@ -247,9 +279,19 @@ export function GameHUD({ snapshot, killFeed, socket }: GameHUDProps) {
             <LogOut className="w-4 h-4 absolute" />
           </div>
           <div className="text-left">
-            <div>{isCashingOut ? 'CHANNELING...' : isPractice ? 'EXIT SANDBOX' : 'HOLD TO CASH OUT'}</div>
+            <div>
+              {!canCashOut
+                ? 'STEAL SOL TO CASH OUT'
+                : isCashingOut
+                ? 'CHANNELING...'
+                : isPractice
+                ? 'EXIT SANDBOX'
+                : 'HOLD TO CASH OUT'}
+            </div>
             <div className="text-[11px] font-mono font-normal text-slate-400">
-              {isCashingOut
+              {!canCashOut
+                ? 'Absorb a SOL player first'
+                : isCashingOut
                 ? `${Math.max(0, 5 - progress * 5).toFixed(1)}s remaining`
                 : 'Hold C or button (5s)'}
             </div>

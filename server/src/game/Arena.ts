@@ -61,6 +61,8 @@ export interface PlayerSession {
   lastActionAt: number;
   isBot?: boolean;
   botDecisionAt?: number;
+  isFreeTicket?: boolean;
+  speedBoostUntil?: number;
   // Anti-teaming tracker: targetWallet -> timestamps of ejects eaten
   feedTracker: Map<string, number[]>;
 }
@@ -239,6 +241,7 @@ export class Arena {
     username: string;
     skinId: string;
     netLamports: number;
+    isFreeTicket?: boolean;
   }): PlayerSession {
     const skin = PLAYER_SKINS.find((s) => s.id === params.skinId) ?? PLAYER_SKINS[0];
     const playerId = randomId('pl');
@@ -280,6 +283,8 @@ export class Arena {
       disconnectedAt: null,
       lastMoveAt: Date.now(),
       lastActionAt: 0,
+      isFreeTicket: Boolean(params.isFreeTicket),
+      speedBoostUntil: 0,
       feedTracker: new Map(),
     };
 
@@ -433,6 +438,13 @@ export class Arena {
     if (!player || player.cells.length === 0 || player.cashoutProcessing || player.isCashingOut) {
       return;
     }
+    const totalLamports = player.cells.reduce((sum, c) => sum + c.lamports, 0);
+    if (!this.tier.isPractice && totalLamports <= 0) {
+      this.io.to(socketId).emit('arena:error', {
+        message: 'Absorb SOL from another player before cashing out!',
+      });
+      return;
+    }
     player.isCashingOut = true;
     player.cashoutStartedAt = Date.now();
   }
@@ -465,6 +477,14 @@ export class Arena {
 
   public getPlayerCount(): number {
     return this.players.size;
+  }
+
+  public getActiveFreePlayerCount(): number {
+    let count = 0;
+    for (const p of this.players.values()) {
+      if (p.isFreeTicket && p.cells.length > 0) count++;
+    }
+    return count;
   }
 
   public getTotalPotLamports(): number {
@@ -564,8 +584,11 @@ export class Arena {
           const dx = targetX - cell.x;
           const dy = targetY - cell.y;
           const dist = Math.hypot(dx, dy);
-          // Server-enforced velocity cap based on mass
-          const maxSpeed = config.baseSpeed * Math.pow(Math.max(10, cell.mass), -0.439) * 3.2;
+          // Server-enforced velocity cap based on mass (+25% surge during active Speed Boost)
+          const boostMultiplier =
+            player.speedBoostUntil && now < player.speedBoostUntil ? 1.25 : 1.0;
+          const maxSpeed =
+            config.baseSpeed * Math.pow(Math.max(10, cell.mass), -0.439) * 3.2 * boostMultiplier;
           // Smooth deadzone only when cursor is very close to cell center (< 45px)
           const speedFactor = Math.min(1, dist / 45);
           if (dist > 0.5) {
@@ -743,14 +766,21 @@ export class Arena {
             const dist = Math.hypot(cell.x - other.x, cell.y - other.y);
             if (dist < cell.radius - other.radius * 0.4) {
               eatenCells.add(other.id);
-              cell.mass += other.mass;
+              const victim = this.players.get(other.ownerId);
+              const isFreeBoostTarget = Boolean(victim?.isFreeTicket && other.lamports === 0);
+
+              cell.mass += other.mass + (isFreeBoostTarget ? 25 : 0);
               cell.radius = massToRadius(cell.mass);
               cell.lamports += other.lamports;
 
-              const victim = this.players.get(other.ownerId);
+              if (isFreeBoostTarget) {
+                const baseUntil = Math.max(player.speedBoostUntil ?? 0, now);
+                player.speedBoostUntil = Math.min(now + 6000, baseUntil + 4000);
+              }
+
               if (victim) {
                 victim.cells = victim.cells.filter((c) => c.id !== other.id);
-                this.onCellEaten(player, victim, other.lamports);
+                this.onCellEaten(player, victim, other.lamports, isFreeBoostTarget);
               }
             }
           }
@@ -912,13 +942,19 @@ export class Arena {
     }
   }
 
-  private onCellEaten(killer: PlayerSession, victim: PlayerSession, bountyLamports: number): void {
+  private onCellEaten(
+    killer: PlayerSession,
+    victim: PlayerSession,
+    bountyLamports: number,
+    boostReward = false
+  ): void {
     const bountySol = bountyLamports / 1_000_000_000;
     const killEvent: KillFeedEvent = {
       id: randomId('k'),
       killerName: killer.username,
       victimName: victim.username,
       bountySol,
+      boostReward,
       timestamp: Date.now(),
     };
 
@@ -1106,6 +1142,8 @@ export class Arena {
           isCashingOut && owner?.cashoutStartedAt
             ? Math.min(1, (now - owner.cashoutStartedAt) / config.cashoutChannelMs)
             : 0;
+        const hasSpeedBoost = Boolean(owner?.speedBoostUntil && now < owner.speedBoostUntil);
+        const isFreeEntry = Boolean(owner?.isFreeTicket && c.lamports === 0);
 
         return {
           id: c.id,
@@ -1121,6 +1159,8 @@ export class Arena {
           isCashingOut,
           cashoutProgress,
           isDisconnected: owner?.disconnectedAt !== null,
+          isFreeEntry,
+          hasSpeedBoost,
         };
       });
 
@@ -1143,6 +1183,11 @@ export class Arena {
       const cashoutProgress =
         player.isCashingOut && player.cashoutStartedAt
           ? Math.min(1, (now - player.cashoutStartedAt) / config.cashoutChannelMs)
+          : 0;
+
+      const speedBoostRemainingMs =
+        player.speedBoostUntil && now < player.speedBoostUntil
+          ? player.speedBoostUntil - now
           : 0;
 
       // Send minimap dots: self + anyone cashing out + #1 leader + up to 12 other players
@@ -1182,6 +1227,7 @@ export class Arena {
         myCenterY: centerY,
         isCashingOut: player.isCashingOut,
         cashoutProgress,
+        speedBoostRemainingMs,
       };
 
       this.io.to(player.socketId).emit('arena:state', snapshot);

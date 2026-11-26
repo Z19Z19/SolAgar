@@ -6,7 +6,8 @@ import {
   LobbyTierId,
 } from '@shared/types';
 import { escrowService } from '../solana/escrowService';
-import { SocketEventThrottle } from '../security/rateLimiter';
+import { getClientIp, SocketEventThrottle } from '../security/rateLimiter';
+import { claimDailyFreeTicket } from '../security/freeTicketService';
 import { Arena } from './Arena';
 
 export class LobbyManager {
@@ -27,6 +28,10 @@ export class LobbyManager {
     for (const arena of this.arenas.values()) {
       arena.stop();
     }
+  }
+
+  public getActiveFreePlayerCount(lobbyId: LobbyTierId = 'micro'): number {
+    return this.arenas.get(lobbyId)?.getActiveFreePlayerCount() ?? 0;
   }
 
   public getLobbyStats(): LobbyStats[] {
@@ -70,7 +75,7 @@ export class LobbyManager {
           return;
         }
 
-        const { lobbyId, username, walletAddress, txSignature, skinId } = payload;
+        const { lobbyId, username, walletAddress, txSignature, skinId, isFreeEntry } = payload;
         const arena = this.arenas.get(lobbyId);
         if (!arena) {
           socket.emit('arena:error', { message: 'Invalid lobby tier.' });
@@ -86,6 +91,7 @@ export class LobbyManager {
 
         let netLamports = 0;
         let effectiveWallet = walletAddress || 'PRACTICE_GUEST';
+        let spawnedAsFreeTicket = false;
 
         if (arena.tier.isPractice) {
           // Free Practice Sandbox: zero buy-in, virtual 0.10 SOL starting bounty
@@ -94,6 +100,24 @@ export class LobbyManager {
             typeof walletAddress === 'string' && walletAddress.length >= 32
               ? walletAddress
               : `PRACTICE_${socket.id.slice(0, 8)}`;
+        } else if (isFreeEntry && lobbyId === 'micro') {
+          // Daily Free Ticket into Micro Arena: 0 SOL start, requires valid wallet for payouts
+          if (typeof walletAddress !== 'string' || walletAddress.length < 32) {
+            socket.emit('arena:error', {
+              message: 'Connect a Solana wallet to claim your Daily Free Ticket.',
+            });
+            return;
+          }
+
+          await claimDailyFreeTicket({
+            wallet: walletAddress,
+            ip: getClientIp(socket),
+            activeFreePlayers: arena.getActiveFreePlayerCount(),
+          });
+
+          netLamports = 0;
+          effectiveWallet = walletAddress;
+          spawnedAsFreeTicket = true;
         } else {
           if (
             typeof txSignature !== 'string' ||
@@ -122,6 +146,7 @@ export class LobbyManager {
           username: cleanName,
           skinId: cleanSkin,
           netLamports,
+          isFreeTicket: spawnedAsFreeTicket,
         });
 
         this.socketArena.set(socket.id, lobbyId);
@@ -133,6 +158,7 @@ export class LobbyManager {
           arenaSize: arena.tier.arenaSize,
           netSol: netLamports / 1_000_000_000,
           isPractice: Boolean(arena.tier.isPractice),
+          isFreeTicket: spawnedAsFreeTicket,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to join arena';
