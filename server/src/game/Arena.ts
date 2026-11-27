@@ -522,6 +522,12 @@ export class Arena {
     const now = Date.now();
     const dt = Math.min(0.1, (now - this.lastTickTime) / 1000);
     this.lastTickTime = now;
+
+    // Sleep empty arenas (or practice arena with zero human players) to keep server CPU crisp
+    if (this.players.size === 0 || (this.tier.isPractice && this.socketToPlayer.size === 0)) {
+      return;
+    }
+
     this.tickCount++;
 
     // 1. Remove expired disconnected players (after 15s grace)
@@ -659,8 +665,11 @@ export class Arena {
       this.spawnVirus();
     }
 
-    // 8. Broadcast interest-managed state snapshots to each active player
-    this.broadcastState(now);
+    // 8. Broadcast interest-managed state snapshots at 30Hz (every 2nd 60Hz physics tick)
+    // Cuts server serialization CPU & mobile bandwidth by 50% while client interpolates at 60-144Hz
+    if (this.tickCount % 2 === 0 && this.socketToPlayer.size > 0) {
+      this.broadcastState(now);
+    }
   }
 
   private resolveOwnCells(player: PlayerSession, now: number): void {

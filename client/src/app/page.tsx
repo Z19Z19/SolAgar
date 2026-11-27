@@ -89,9 +89,19 @@ export default function HomePage() {
       setIsJoining(false);
     };
 
+    let lastHudUpdate = 0;
+    let lastCashoutFlag = false;
+
     const onState = (snap: GameStateSnapshot) => {
       stateRef.current = snap;
-      setHudSnapshot(snap);
+      const now = performance.now();
+      // Update React HUD at 10Hz (every 100ms) or immediately on cash-out toggle
+      // Saves ~80% React DOM/GC overhead while Canvas renders smoothly at 60-144Hz
+      if (snap.isCashingOut !== lastCashoutFlag || now - lastHudUpdate >= 100) {
+        lastCashoutFlag = snap.isCashingOut;
+        lastHudUpdate = now;
+        setHudSnapshot(snap);
+      }
     };
 
     const onKill = (ev: KillFeedEvent) => {

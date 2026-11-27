@@ -76,7 +76,17 @@ export function LobbyScreen({
     : connected && !isJoining && Boolean(escrowInfo?.configured);
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col relative overflow-x-hidden">
+      {/* Lightweight ambient radial glow backdrop (static GPU layer, zero frame cost) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 -z-10"
+        style={{
+          background:
+            'radial-gradient(650px circle at 15% 10%, rgba(16, 185, 129, 0.08), transparent 60%), radial-gradient(550px circle at 85% 20%, rgba(56, 189, 248, 0.07), transparent 60%)',
+        }}
+      />
+
       {/* Top Navbar */}
       <header className="border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
@@ -84,7 +94,7 @@ export function LobbyScreen({
             <img
               src="/logo.jpg"
               alt="SolAgar Logo"
-              className="w-10 h-10 rounded-xl object-cover border border-emerald-400/40 shadow-lg shadow-emerald-500/20"
+              className="w-10 h-10 rounded-xl object-cover border border-emerald-400/40 shadow-lg shadow-emerald-500/20 transition-transform duration-200 hover:scale-105"
             />
             <div>
               <span className="text-xl font-black tracking-tight bg-gradient-to-r from-emerald-400 via-cyan-300 to-purple-400 bg-clip-text text-transparent">
@@ -100,7 +110,7 @@ export function LobbyScreen({
           <nav className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-slate-900/90 border border-slate-800">
             <button
               onClick={() => setActiveTab('play')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all duration-150 ${
                 activeTab === 'play'
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                   : 'text-slate-400 hover:text-slate-200'
@@ -110,7 +120,7 @@ export function LobbyScreen({
             </button>
             <button
               onClick={() => setActiveTab('hall-of-fame')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all duration-150 ${
                 activeTab === 'hall-of-fame'
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                   : 'text-slate-400 hover:text-slate-200'
@@ -139,7 +149,7 @@ export function LobbyScreen({
         <div className="flex md:hidden border-t border-slate-800/80 px-4 py-2 gap-2">
           <button
             onClick={() => setActiveTab('play')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition ${
               activeTab === 'play'
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                 : 'text-slate-400 bg-slate-900'
@@ -149,7 +159,7 @@ export function LobbyScreen({
           </button>
           <button
             onClick={() => setActiveTab('hall-of-fame')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition ${
               activeTab === 'hall-of-fame'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'text-slate-400 bg-slate-900'
@@ -163,12 +173,14 @@ export function LobbyScreen({
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
         {activeTab === 'hall-of-fame' ? (
-          <HallOfFame />
+          <div className="animate-fade-up">
+            <HallOfFame />
+          </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Left: Spawn & Lobby Selection */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="rounded-2xl border border-slate-800 bg-[#0e131f] p-6 shadow-2xl">
+            <div className="lg:col-span-7 space-y-6 animate-fade-up">
+              <div className="rounded-2xl border border-slate-800 bg-[#0e131f]/95 p-6 shadow-2xl">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
@@ -187,9 +199,9 @@ export function LobbyScreen({
                 </div>
 
                 {showRules && (
-                  <div className="mb-5 p-4 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 space-y-1.5">
+                  <div className="animate-fade-up mb-5 p-4 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 space-y-1.5">
                     <p>
-                      <strong className="text-cyan-400">Move:</strong> Mouse cursor &nbsp;|&nbsp;{' '}
+                      <strong className="text-cyan-400">Move:</strong> Mouse cursor or Touch &nbsp;|&nbsp;{' '}
                       <strong className="text-cyan-400">Split:</strong> Space &nbsp;|&nbsp;{' '}
                       <strong className="text-cyan-400">Eject Mass:</strong> W
                     </p>
@@ -214,7 +226,7 @@ export function LobbyScreen({
                       <button
                         key={id}
                         onClick={() => onSelectLobby(id)}
-                        className={`text-left p-4 rounded-xl border transition-all ${
+                        className={`text-left p-4 rounded-xl border transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.99] ${
                           isSelected
                             ? tier.isPractice
                               ? 'border-sky-400 bg-sky-500/10 shadow-lg shadow-sky-500/10'
@@ -334,7 +346,7 @@ export function LobbyScreen({
                 <button
                   onClick={onJoinArena}
                   disabled={!canJoin}
-                  className={`w-full py-4 rounded-xl font-black text-base tracking-wide text-slate-950 shadow-xl hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 ${
+                  className={`cta-sheen w-full py-4 rounded-xl font-black text-base tracking-wide text-slate-950 shadow-xl hover:opacity-95 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 ${
                     isPractice
                       ? 'bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 shadow-sky-500/20'
                       : 'bg-gradient-to-r from-emerald-400 via-cyan-400 to-emerald-400 shadow-emerald-500/20'
@@ -354,7 +366,7 @@ export function LobbyScreen({
 
                 {/* Daily Free Ticket into Micro Arena */}
                 {selectedLobby === 'micro' && (
-                  <div className="mt-3 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30">
+                  <div className="animate-fade-up mt-3 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2">
                         <Ticket className="w-4 h-4 text-sky-400" />
@@ -379,7 +391,7 @@ export function LobbyScreen({
                         !escrowInfo?.configured ||
                         !freeTicketStatus?.eligible
                       }
-                      className="w-full py-2.5 rounded-lg font-extrabold text-xs tracking-wide bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                      className="w-full py-2.5 rounded-lg font-extrabold text-xs tracking-wide bg-sky-500/20 hover:bg-sky-500/30 active:scale-[0.99] text-sky-200 border border-sky-400/50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
                     >
                       <Ticket className="w-4 h-4" />
                       {!connected
@@ -403,8 +415,8 @@ export function LobbyScreen({
             </div>
 
             {/* Right: Live Arena Leaderboard */}
-            <div className="lg:col-span-5">
-              <div className="rounded-2xl border border-slate-800 bg-[#0e131f] p-6 shadow-2xl h-full flex flex-col">
+            <div className="lg:col-span-5 animate-fade-up-delay">
+              <div className="rounded-2xl border border-slate-800 bg-[#0e131f]/95 p-6 shadow-2xl h-full flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-amber-400" />

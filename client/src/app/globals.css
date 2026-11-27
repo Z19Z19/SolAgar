@@ -8,6 +8,7 @@ body {
   color: #f8fafc;
   overflow-x: hidden;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .wallet-adapter-button-trigger {
@@ -21,4 +22,114 @@ body {
 .wallet-adapter-button-trigger:hover {
   opacity: 0.92 !important;
   transform: translateY(-1px) !important;
+}
+
+/* Lightweight GPU-composited menu & HUD animations */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes softFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+@keyframes sheenSweep {
+  0% {
+    transform: translateX(-120%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-20deg);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-up-delay {
+  animation: fadeSlideUp 0.42s cubic-bezier(0.16, 1, 0.3, 1) 0.06s both;
+}
+
+.animate-modal-pop {
+  animation: modalPop 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-toast-in {
+  animation: toastIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-soft-float {
+  animation: softFloat 4s ease-in-out infinite;
+}
+
+.cta-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.35),
+    transparent
+  );
+  transform: translateX(-120%) skewX(-20deg);
+  pointer-events: none;
+}
+
+.cta-sheen:not(:disabled):hover::after {
+  animation: sheenSweep 0.75s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-up-delay,
+  .animate-modal-pop,
+  .animate-toast-in,
+  .animate-soft-float {
+    animation: none !important;
+  }
+  .cta-sheen::after {
+    display: none;
+  }
 }

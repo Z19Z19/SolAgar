@@ -19,7 +19,7 @@ export function CashOutModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="max-w-md w-full rounded-2xl border border-slate-800 bg-[#0e131f] p-6 shadow-2xl text-center">
+      <div className="animate-modal-pop max-w-md w-full rounded-2xl border border-slate-800 bg-[#0e131f] p-6 shadow-2xl text-center">
         {cashOutResult ? (
           <>
             <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
