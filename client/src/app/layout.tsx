@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import { WalletProvider } from '@/components/WalletProvider';
 
@@ -21,6 +22,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${mono.variable} dark`}>
       <body className="font-sans antialiased bg-[#07090e] text-slate-100 min-h-screen">
         <WalletProvider>{children}</WalletProvider>
+        <Analytics />
       </body>
     </html>
   );
